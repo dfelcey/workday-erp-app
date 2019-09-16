@@ -1,10 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd ">
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:workday="http://www.mulesoft.org/schema/mule/workday" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/workday http://www.mulesoft.org/schema/mule/workday/current/mule-workday.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
     <http:listener-config name="erp-api-httpListenerConfig">
         <http:listener-connection host="0.0.0.0" port="8081" />
     </http:listener-config>
     <apikit:config name="erp-api-config" raml="erp-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
-    <flow name="erp-api-main">
+    <workday:config-version-32-config name="Workday_Config_version_32" doc:name="Workday Config version 32" doc:id="1a934a47-ac1d-4ea3-b1ce-b8fa3388ce08" >
+		<workday:basic-authentication-api-v32-connection userName="${wday.username}" password="${wday.password}" hostName="${wday.host}" tenantName="${wday.tenant}">
+			<reconnection >
+				<reconnect />
+			</reconnection>
+		</workday:basic-authentication-api-v32-connection>
+	</workday:config-version-32-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="77c85aef-5865-4816-85cf-c4c6c9c8020d" file='${env}-config.properties' />
+	<cloudhub:config name="CloudHub_Config" doc:name="CloudHub Config" doc:id="30f6d253-4f58-497f-ae1e-e93bbb3bc10a" >
+		<cloudhub:connection username="${cloudhub.username}" password="${cloudhub.password}" environment="Sandbox" />
+	</cloudhub:config>
+	<global-property doc:name="Global Property" doc:id="2e2ef78c-d930-496a-a85d-94c848d28f40" name="env" value="dev" />
+	<flow name="erp-api-main">
         <http:listener config-ref="erp-api-httpListenerConfig" path="/api/*">
             <http:response statusCode="#[vars.httpStatus default 200]">
                 <http:headers>#[vars.outboundHeaders default {}]</http:headers>
@@ -124,6 +139,207 @@ output application/json
         </error-handler>
     </flow>
     <flow name="post:\contacts:application\json:erp-api-config">
-        <logger level="INFO" message="post:\contacts:application\json:erp-api-config" />
+        <try doc:name="Try" doc:id="a07b6e0b-b64d-4a55-91f0-2d6a81147eaa" >
+			<set-variable value="#[payload]" doc:name="Save contact details" doc:id="87f99202-e949-4463-8cb5-282fe8ab2e05" variableName="contactDetails"/>
+			<flow-ref doc:name="Lookup customer" doc:id="e7deee7d-68ae-4c57-a0a9-f5c84cf4877d" name="lookup-customer-flow" />
+			<set-variable value="#[payload[0]]" doc:name="Save Workday customer reference" doc:id="c7ed02a6-2800-4a26-9a90-0a358f46c006" variableName="workdayCustRef"/>
+			<choice doc:name="Check if customer found" doc:id="78bb0ab5-1826-4e4b-a153-62d01bbfc790" >
+				<when expression="#[vars.workdayCustRef != null]">
+					<flow-ref doc:name="Get exisitng contact" doc:id="8e826770-b955-4e1e-90a5-c424828affab" name="get-existing-business-entity-contact-id-flow" />
+					<flow-ref doc:name="Upsert contact" doc:id="556c8b7d-ff46-427e-9054-0a3b36947430" name="upsert-contact-flow" />
+				</when>
+				<otherwise >
+					<logger level="INFO" doc:name="Log not found" doc:id="a0de1d03-2f52-4c41-98ab-e8290356f832" message="No customers found for contact"/>
+					<ee:transform doc:name="Transform Message" doc:id="cfcd1d55-1d84-467e-abbe-593c7eef04d6" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Customer (" ++ vars.contactDetails.id as String ++ ") not found"
+}]]></ee:set-payload>
+						</ee:message>
+						<ee:variables >
+							<ee:set-variable variableName="httpStatus" ><![CDATA[404]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+				</otherwise>
+			</choice>
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="Connection Error" doc:id="e2045c35-3dfa-419b-90e4-ce62284b3e0f" type="WORKDAY:UNKNOWN" when='error.description contains "not found"'>
+					<logger level="ERROR" doc:name="Logger" doc:id="d18c8a9b-9f02-478e-96ef-e2f4a7d63d45" message="Cannot connect to workday: #[error.description]"/>
+					<ee:transform doc:name="Set error response" doc:id="2f8ad6ca-2002-443e-a109-46627052414e" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Cannot connect to Workday"
+}]]></ee:set-payload>
+						</ee:message>
+						<ee:variables >
+							<ee:set-variable variableName="httpStatus" ><![CDATA[503]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+				</on-error-continue>
+				<on-error-continue enableNotifications="true" logException="true" doc:name="Unknown Error" doc:id="98337ef4-9793-4593-81bb-8954e78201b9" type="ANY">
+					<logger level="ERROR" doc:name="Log Error" doc:id="515f53fb-daa4-4b4e-8c91-0bcfed0cee0c" message="Error: #[error.description]"/>
+					<cloudhub:create-notification doc:name="Create Notification" doc:id="4f6a8d1d-ef85-444e-b0dd-bc7e40da7ad2" config-ref="CloudHub_Config" domain="${domain}"/>
+					<ee:transform doc:name="Set error response" doc:id="f016205e-2a01-4484-b1be-bd5592819ffe" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Unexpected error. " ++ error.descritpion default ""
+}]]></ee:set-payload>
+						</ee:message>
+						<ee:variables >
+							<ee:set-variable variableName="httpStatus" ><![CDATA[500]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+				</on-error-continue>
+			</error-handler>
+		</try>
     </flow>
+	<sub-flow name="get-existing-business-entity-contact-id-flow" doc:id="74fba7d5-2a4b-484b-8930-7930c95b6a09" >
+		<set-variable value="#[vars.pageNum default 0 as Number + 1]" doc:name="Set Page Num Variable" doc:id="14f0c1e9-5c62-4792-ad8e-cf26cd2821df" variableName="pageNum" />
+		<ee:transform doc:name="Prepare Contacts Request" doc:id="30c99005-6a9e-49fc-a914-d910330aecf8">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 urn:com.workday/bsvc
+---
+{
+	ns0#Get_Business_Entity_Contacts_Request: {
+		ns0#Response_Filter: {
+			ns0#Page: vars.pageNum,
+			ns0#Count: 50
+		},
+		ns0#Response_Group: {
+			ns0#Include_Reference: true
+		}
+	}
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="contactEmailAddress"><![CDATA[%dw 2.0
+output application/json
+---
+vars.contactDetails.Email]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<workday:revenue-management operation="Get_Business_Entity_Contacts" doc:name="Business Entity Contacts" doc:id="98d2a4f6-e7ad-4d1c-bed9-836e37b78b9e" config-ref="Workday_Config_version_32">
+			<reconnect />
+		</workday:revenue-management>
+		<ee:transform doc:name="Transform response" doc:id="1485ac94-7d90-4636-989e-c1841eaf71b4" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+ns ns0 urn:com.workday/bsvc
+---
+items: payload.ns0#Get_Business_Entity_Contacts_Response.ns0#Response_Data.*ns0#Business_Entity_Contact map ( businessEntityContact , indexOfBusinessEntityContact ) -> {
+	emailAddress: businessEntityContact.*ns0#Business_Entity_Contact_Data.ns0#Business_Entity_Contact_Personal_Data.ns0#Contact_Data.*ns0#Email_Address_Data.ns0#Email_Address[0] default "",
+	reference: businessEntityContact.ns0#Business_Entity_Contact_Reference.*ns0#ID[0] default ""
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Log contacts" doc:id="e58465ce-f969-4fa9-a565-896c99153d4a" message="Contacts: #[output application/json --- payload]"/>
+		<ee:transform doc:name="Filter contacts" doc:id="2071f044-26ce-49bf-a2c4-fd992f7b501d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload.items filter($.emailAddress == vars.contactDetails.email)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Log Filtered Results" doc:id="a3755836-4483-4e4b-a8b8-ec0a0686e9ba" message="Filtered contacts: #[output application/json --- payload]" />
+	</sub-flow>
+	<sub-flow name="upsert-contact-flow" doc:id="c083b421-d022-4b01-b186-4353eb934a87" >
+		<ee:transform doc:name="Prepare Upsert Contact Request" doc:id="8649da11-8e68-465c-8ede-015b500dc2d4">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 urn:com.workday/bsvc
+---
+{
+	ns0#Put_Business_Entity_Contact_Request @(ns0#"Add_Only": "false"): {
+		(ns0#Business_Entity_Contact_Reference: {
+			ns0#ID @(ns0#"type": "WID"):
+				payload[0].reference as String 
+		}) if payload != null and sizeOf(payload) > 0,
+		ns0#Business_Entity_Contact_Data: {
+			ns0#Billable_Entity_Reference: {
+				ns0#ID @(ns0#"type": vars.workdayCustRef."type"): vars.workdayCustRef.value
+			},
+			ns0#Business_Entity_Contact_Personal_Data: {
+				ns0#Name_Data: {
+					ns0#Name_Detail_Data: {
+						ns0#Country_Reference: {
+							ns0#ID @(ns0#"type": "ISO_3166-1_Alpha-3_Code"): "GBR"
+						},
+						ns0#First_Name: (vars.contactDetails.firstname default ""),
+						ns0#Last_Name: (vars.contactDetails.lastname default ""),
+					}
+				},
+				ns0#Contact_Data: {
+					ns0#Email_Address_Data @(ns0#"Do_Not_Replace_All": "false"): {
+						ns0#Email_Address: (vars.contactDetails.email default ""),
+						ns0#Usage_Data @(ns0#"Public": "true"): {
+							ns0#Type_Data @(ns0#"Primary": "true"): {
+								ns0#Type_Reference: {
+									ns0#ID @(ns0#"type": "Communication_Usage_Type_ID"): "WORK"
+								}
+							}
+						}
+					},
+				}
+			}
+		}
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Log upsert request" doc:id="dc34f988-8b6b-449a-a63e-963d06153982" message="Upsert request: #[output applicaiton/xml --- payload]"/>
+		<workday:revenue-management operation="Put_Business_Entity_Contact" doc:name="Upsert Workday Contact" doc:id="c54ca7f2-9903-4853-b8b3-447430df0096" config-ref="Workday_Config_version_32" />
+		<logger level="INFO" doc:name="Log result" doc:id="08cbe38a-5434-4fea-a23a-3deaa1db4f7c" message="Upsert result: #[output application/xml --- payload]"/>
+	</sub-flow>
+	<sub-flow name="lookup-customer-flow" doc:id="e8d6d779-5570-4d5d-927d-53861b8b425b" >
+		<set-payload value="#[vars.contactDetails]" doc:name="Set Payload" doc:id="544f81fb-27f3-47ac-a703-de11c1f4bea7" mimeType="application/json"/>
+		<ee:transform doc:name="Prepare get customers request" doc:id="de8b0190-ee6a-4980-8f2d-de140cb90eb2">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 urn:com.workday/bsvc
+---
+{
+	ns0#Get_Customers_Request: {
+		ns0#Request_Criteria: {
+			ns0#Customer_Name: payload.id
+		},
+		ns0#Response_Group: {
+			ns0#Include_Reference: true,
+			ns0#Include_Customer_Data: true
+		}
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<workday:revenue-management doc:name="Get customer" doc:id="c8bd4e7a-e14d-47c6-9ccc-2677272bcc77" config-ref="Workday_Config_version_32" operation="Get_Customers">
+		</workday:revenue-management>
+		<ee:transform doc:name="Transform response" doc:id="71b04d82-eea3-4809-ad8a-85ddae439072" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+ns ns0 urn:com.workday/bsvc
+---
+payload.ns0#Get_Customers_Response.*ns0#Response_Data.ns0#Customer.ns0#Customer_Reference map ( item , index ) -> {
+	"type": item.*ns0#ID[?($.@ns0#"type" == "Customer_ID")].@ns0#"type"[0],
+	"value": item.*ns0#ID[?($.@ns0#"type" == "Customer_ID")][0]		 
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Log customers" doc:id="f6bbfb8f-d2c8-4ad3-b68a-4914947cab21" message="Customer: #[output application/json --- payload]" />
+	</sub-flow>
 </mule>
