@@ -17,6 +17,9 @@
 		<app.runtime>4.2.0</app.runtime>
 		<mule.maven.plugin.version>3.2.7</mule.maven.plugin.version>
 		<munit.version>2.2.1</munit.version>
+		
+		<maven.compiler.source>1.8</maven.compiler.source>
+		<maven.compiler.target>1.8</maven.compiler.target>
 	</properties>
 
 	<build>
@@ -50,6 +53,29 @@
 							<format>html</format>
 						</formats>
 					</coverage>
+					<enableSurefireReports>true</enableSurefireReports>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.mule.tools.maven</groupId>
+				<artifactId>mule-maven-plugin</artifactId>
+				<version>${mule.maven.plugin.version}</version>
+				<extensions>true</extensions>
+				<configuration>
+					<classifier>mule-application</classifier>
+					<cloudHubDeployment>
+						<muleVersion>${mule.version}</muleVersion>
+						<uri>https://anypoint.mulesoft.com</uri>
+						<muleVersion>${app.runtime}</muleVersion>
+						<username>${anypoint.username}</username>
+						<password>${anypont.password}</password>
+						<applicationName>${app.name}</applicationName>
+						<environment>${anypoint.environment}</environment>
+						<businessGroup>${anypont.business_group}</businessGroup>
+						<workers>1</workers>
+						<workerType>MICRO</workerType>
+						<region>us-east-2</region>
+					</cloudHubDeployment>
 				</configuration>
 			</plugin>
 		</plugins>

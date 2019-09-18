@@ -2,9 +2,29 @@ pipeline {
   agent {
     label 'mule-builder'
   }  
+  
   environment {
-    ENV = 'test'
-    ENVIRONMENT = 'Sandbox'
+  	ENV_NAME = 'test'   
+    ANYPOINT_CREDS = credentials("$ENV_NAME-anypoint-creds")
+    ANYPOINT_CLIENT_CREDS = credentials("$ENV_NAME-anypoint-client-creds")
+	APP_NAME = 'workday-erp-app-$ENV_NAME'
+	ANYPOINT_ENV = 'Sandbox'
+	ANYPOINT_BG = 'Test'
+	
+    // For WKDAY access
+    ERP_CREDS = credentials("$ENV_NAME-erp-creds")
+    ERP_TENANT = credentials("$ENV_NAME-erp-tenant")
+    ERP_URL = credentials("$ENV_NAME-erp-url")	
+    
+    MVN_SYS_PROPS = "-Dmule.env=$ENV_NAME -Dapp.name=$APP_NAME -Danypoint.username=$ANYPOINT_CREDS_USR -Danypont.password=$ANYPOINT_CREDS_PWD -Danypoint.environment=$ANYPOINT_ENV -Danypont.business_group=$ANYPOINT_BG -Dnypoint.platform.client_id=$ANYPOINT_CLIENT_CREDS_USR -Danypoint.platform.client_secret=$ANYPOINT_CLIENT_CREDS_PWD -Dwday.username=$ERP_CREDS_USR -Dwday.tenant=$ERP_TENANT -Dwday.password=$ERP_CREDS_PWD -Dwday.host=$ERP_URL"
+  }
+  
+  triggers {
+    pollSCM('* * * * *')
+  }
+
+  tools {
+    maven 'M3'
   }
   
   stages {
@@ -12,7 +32,7 @@ pipeline {
       steps {
         withMaven(){
             sh 'echo "Building environment for: $ENV"'
-            sh 'mvn clean package'
+            sh 'mvn -V $MVN_SYS_PROPS clean package'
           }
       }
     }
@@ -20,42 +40,19 @@ pipeline {
     stage('Test') {
       steps {
         withMaven(){
-            sh "mvn -B test"
+            sh 'env'
+            sh 'mvn -V -B $MVN_SYS_PROPS test'
         }
       }
     }
 
     stage('Deploy') {
-      environment {
-        APP_NAME = 'workday-erp-app'
-        APP_CLIENT_CREDS = credentials("$ENV-app-client-creds")
-        ANYPOINT_ENV = credentials("$ENV-anypoint-creds")
-        BG = "Test"
-        WORKER = "MICRO"
-      }
-      
       steps {
         withMaven(){
-            sh 'echo "Deploying environment for: $ENV"'
-            sh 'mvn -V -B deploy -DmuleDeploy \
-              -Denv=$ENV \
-              -Dmule.version=$MULE_VERSION \
-              -Danypoint.username=$DEPLOY_CREDS_USR \
-              -Danypoint.password=$DEPLOY_CREDS_PSW \
-              -Dcloudhub.app=$APP_NAME \
-              -Dcloudhub.environment=$ENVIRONMENT \
-              -Denv.ANYPOINT_CLIENT_ID=$ANYPOINT_ENV_USR \
-              -Denv.ANYPOINT_CLIENT_SECRET=$ANYPOINT_ENV_PSW \
-              -Dcloudhub.bg=$BG \
-              -Dcloudhub.worker=$WORKER \
-              -Dapp.client_id=$APP_CLIENT_CREDS_USR \
-              -Dapp.client_secret=$APP_CLIENT_CREDS_PSW'
-          }
+            sh 'echo "Deploying environment for: $ENV_NAME"'
+            sh 'mvn -V -B $MVN_SYS_PROPS deploy -DmuleDeploy'
+           }
       }
     }
-  }
-
-  tools {
-    maven 'M3'
   }
 }

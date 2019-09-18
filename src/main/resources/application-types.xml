@@ -63,4 +63,13 @@ type cust_ref_json = {|
       </types:input-event>
     </types:processor-declaration>
   </types:enrichment>
+  <types:enrichment select="#af8dc3e4-5f55-465c-a7df-5d8d0248246d">
+    <types:processor-declaration>
+      <types:output-event>
+        <types:message>
+          <types:payload type="request-json[]"/>
+        </types:message>
+      </types:output-event>
+    </types:processor-declaration>
+  </types:enrichment>
 </types:mule>
