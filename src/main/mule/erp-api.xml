@@ -11,10 +11,7 @@
             </reconnection>
         </workday:basic-authentication-api-v32-connection>
     </workday:config-version-32-config>
-    <configuration-properties doc:name="Configuration properties" doc:id="77c85aef-5865-4816-85cf-c4c6c9c8020d" file="${env}-config.properties" />
-    <cloudhub:config name="CloudHub_Config" doc:name="CloudHub Config" doc:id="30f6d253-4f58-497f-ae1e-e93bbb3bc10a">
-        <cloudhub:connection username="${cloudhub.username}" password="${cloudhub.password}" environment="Sandbox" />
-    </cloudhub:config>
+    <configuration-properties doc:name="Configuration properties" doc:id="77c85aef-5865-4816-85cf-c4c6c9c8020d" file="${mule.env}-config.properties" />
     <global-property doc:name="Global Property" doc:id="2e2ef78c-d930-496a-a85d-94c848d28f40" name="env" value="dev" />
     <flow name="erp-api-main">
         <http:listener config-ref="erp-api-httpListenerConfig" path="/api/*">
@@ -181,7 +178,6 @@ output application/json
                 </on-error-continue>
                 <on-error-continue enableNotifications="true" logException="true" doc:name="Unknown Error" doc:id="98337ef4-9793-4593-81bb-8954e78201b9" type="ANY">
                     <logger level="ERROR" doc:name="Log Error" doc:id="515f53fb-daa4-4b4e-8c91-0bcfed0cee0c" message="Error: #[error.description]" />
-                    <cloudhub:create-notification doc:name="Create Notification" doc:id="4f6a8d1d-ef85-444e-b0dd-bc7e40da7ad2" config-ref="CloudHub_Config" domain="${domain}" />
                     <ee:transform doc:name="Set error response" doc:id="f016205e-2a01-4484-b1be-bd5592819ffe">
                         <ee:message>
                             <ee:set-payload><![CDATA[%dw 2.0
@@ -198,6 +194,9 @@ output application/json
                 </on-error-continue>
             </error-handler>
         </try>
+    </flow>
+    <flow name="delete:\contacts\(reference):erp-api-config">
+		<flow-ref doc:name="Call delete flow" doc:id="1d6e1cac-320f-4f9b-a01d-e4865db7303d" name="delete-contact-flow"/>
     </flow>
     <sub-flow name="get-existing-business-entity-contact-id-flow" doc:id="74fba7d5-2a4b-484b-8930-7930c95b6a09">
         <set-variable value="#[vars.pageNum default 0 as Number + 1]" doc:name="Set Page Num Variable" doc:id="14f0c1e9-5c62-4792-ad8e-cf26cd2821df" variableName="pageNum" />
@@ -337,4 +336,7 @@ payload.ns0#Get_Customers_Response.*ns0#Response_Data.ns0#Customer.ns0#Customer_
         </ee:transform>
         <logger level="INFO" doc:name="Log customers" doc:id="f6bbfb8f-d2c8-4ad3-b68a-4914947cab21" message="Customer: #[output application/json --- payload]" />
     </sub-flow>
+	<sub-flow name="delete-contact-flow" doc:id="e8e86917-3ded-4a24-9cd3-6f5b0cb8fecc" >
+		<logger level="INFO" doc:name="Logger" doc:id="2d7bfed6-f815-492e-be1f-60ed1ddd329c" message="Deleting contact: #[attributes.uriParams.reference]"/>
+	</sub-flow>
 </mule>
