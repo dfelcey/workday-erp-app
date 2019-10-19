@@ -11,14 +11,15 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<project.reporting.outputEncoding>UTF-8
+		</project.reporting.outputEncoding>
 
-		<app.runtime>4.2.0</app.runtime>
-		<mule.maven.plugin.version>3.2.7</mule.maven.plugin.version>
-		<munit.version>2.2.1</munit.version>
-		
 		<maven.compiler.source>1.8</maven.compiler.source>
 		<maven.compiler.target>1.8</maven.compiler.target>
+
+		<mule.version>4.2.1</mule.version>
+		<mule.maven.plugin.version>3.2.7</mule.maven.plugin.version>
+		<munit.version>2.2.1</munit.version>
 	</properties>
 
 	<build>
@@ -46,10 +47,17 @@
 					</execution>
 				</executions>
 				<configuration>
+					<runtimeVersion>${mule.version}</runtimeVersion>
 					<coverage>
 						<runCoverage>true</runCoverage>
+						<failBuild>false</failBuild>
+
+					    <requiredApplicationCoverage>75</requiredApplicationCoverage>
+					    <requiredResourceCoverage>50</requiredResourceCoverage>
+					    <requiredFlowCoverage>50</requiredFlowCoverage>
+
 						<formats>
-							<format>html</format>
+							<format>console</format>
 						</formats>
 					</coverage>
 					<enableSurefireReports>true</enableSurefireReports>
@@ -65,7 +73,7 @@
 					<cloudHubDeployment>
 						<muleVersion>${mule.version}</muleVersion>
 						<uri>https://anypoint.mulesoft.com</uri>
-						<muleVersion>${app.runtime}</muleVersion>
+						<muleVersion>${mule.version}</muleVersion>
 						<username>${anypoint.username}</username>
 						<password>${anypont.password}</password>
 						<applicationName>${app.name}</applicationName>

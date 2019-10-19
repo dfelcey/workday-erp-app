@@ -20,7 +20,7 @@
 			<flow-ref doc:name="Call main flow" doc:id="4829936c-3e00-4a76-9d75-2ed880db5c00" name="post:\contacts:application\json:erp-api-config"/>
 		</munit:execution>
 		<munit:validation >
-			<munit-tools:assert-that doc:name="Assert 503 returned for connection error" doc:id="14a105ee-b21b-4655-8e62-346f12df208f" expression="#[vars.httpStatus as String]" is="#[MunitTools::containsString('503')]" message="Incorrect response code"/>
+			<munit-tools:assert-that doc:name="Assert 404 returned for customer not found" doc:id="14a105ee-b21b-4655-8e62-346f12df208f" expression="#[vars.httpStatus as String]" is="#[MunitTools::containsString('404')]" message="Incorrect response code"/>
 		</munit:validation>
 	</munit:test>
 

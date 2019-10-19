@@ -1,58 +1,61 @@
 pipeline {
   agent {
     label 'mule-builder'
-  }  
+  }
   
-  environment {
+  environment {  
   	ENV_NAME = 'test'   
-    ANYPOINT_CREDS = credentials("$ENV_NAME-anypoint-creds")
-    ANYPOINT_CLIENT_CREDS = credentials("$ENV_NAME-anypoint-client-creds")
-	APP_NAME = 'workday-erp-app-$ENV_NAME'
-	ANYPOINT_ENV = 'Sandbox'
-	ANYPOINT_BG = 'Test'
-	
-    // For WKDAY access
-    ERP_CREDS = credentials("$ENV_NAME-erp-creds")
-    ERP_TENANT = credentials("$ENV_NAME-erp-tenant")
-    ERP_URL = credentials("$ENV_NAME-erp-url")	
-    
-    MVN_SYS_PROPS = "-Dmule.env=$ENV_NAME -Dapp.name=$APP_NAME -Danypoint.username=$ANYPOINT_CREDS_USR -Danypont.password=$ANYPOINT_CREDS_PWD -Danypoint.environment=$ANYPOINT_ENV -Danypont.business_group=$ANYPOINT_BG -Dnypoint.platform.client_id=$ANYPOINT_CLIENT_CREDS_USR -Danypoint.platform.client_secret=$ANYPOINT_CLIENT_CREDS_PWD -Dwday.username=$ERP_CREDS_USR -Dwday.tenant=$ERP_TENANT -Dwday.password=$ERP_CREDS_PWD -Dwday.host=$ERP_URL"
-  }
-  
-  triggers {
-    pollSCM('* * * * *')
-  }
-
-  tools {
-    maven 'M3'
+    DEPLOY_CREDS = credentials('deploy-anypoint-user')
+    MULE_VERSION = '4.2.0'
+    	APP_NAME = "workday-erp-app"
+    BG = "Test"
+    SETTINGS_FILE_ID = 'anypoint-settings'
   }
   
   stages {
+    stage('Prepare') {
+      steps {
+        configFileProvider([configFile(fileId: "${APP_NAME}-config.properties", replaceTokens: true, targetLocation: "./src/main/resources/${ENV_NAME}-config.properties")]) {
+          sh 'echo "Branch NAME: $BRANCH_NAME"'
+          sh 'echo "Environment NAME: $ENV_NAME"'
+        }
+      }
+    }
+    
     stage('Build') {
       steps {
-        withMaven(){
-            sh 'echo "Building environment for: $ENV"'
-            sh 'mvn -V $MVN_SYS_PROPS clean package'
-          }
+        withMaven(mavenSettingsConfig: "$SETTINGS_FILE_ID"){   
+          sh 'mvn -B clean package -Dmule.env=$ENV_NAME -Dmule.version=$MULE_VERSION -DskipTests'
+        }
       }
     }
 
     stage('Test') {
       steps {
-        withMaven(){
-            sh 'env'
-            sh 'mvn -V -B $MVN_SYS_PROPS test'
+        withMaven(mavenSettingsConfig: "$SETTINGS_FILE_ID"){   
+          sh 'mvn -B test -Dmule.env=$ENV_NAME -Dmule.version=$MULE_VERSION'
         }
       }
     }
-
-    stage('Deploy') {
+    	
+    stage('Deploy Development') {
+      when {
+        branch 'develop'
+      }
+      environment {
+        ENVIRONMENT = 'Sandbox'
+        ANYPOINT_CLIENT_CREDS = credentials("$ENV_NAME-anypoint-client-creds")
+      }
       steps {
-        withMaven(){
-            sh 'echo "Deploying environment for: $ENV_NAME"'
-            sh 'mvn -V -B $MVN_SYS_PROPS deploy -DmuleDeploy'
-           }
+        withMaven(mavenSettingsConfig: "$SETTINGS_FILE_ID"){   
+          sh 'echo "Anypoint user: $ANYPOINT_CLIENT_CREDS_USR"'
+          sh 'mvn -V -B -DskipTests deploy -DmuleDeploy -Dmule.env=$ENV_NAME -Dmule.version=$MULE_VERSION -Danypoint.username=$DEPLOY_CREDS_USR -Danypoint.password=$DEPLOY_CREDS_PSW -Dnypoint.platform.client_id=$ANYPOINT_CLIENT_CREDS_USR -Danypoint.platform.client_secret=$ANYPOINT_CLIENT_CREDS_PWD -Dapp.name=$APP_NAME -Danypoint.environment=$ENVIRONMENT -Danypont.business_group="$BG" '
+        }
       }
     }
+  }
+
+  tools {
+    maven 'M3'
   }
 }
